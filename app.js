@@ -1,53 +1,48 @@
 const express = require("express");
 var bodyParser = require("body-parser");
-const hbs = require("express-handlebars");
-const db = require("./db.json");
-const fs = require("fs");
+const exphbs = require("express-handlebars");
+const moment = require("moment");
+const session = require("express-session");
 
 const app = express();
 
-app.engine(".hbs", hbs({ extname: ".hbs" }));
+var hbs = exphbs.create({
+  helpers: {
+    formatDate: date => moment(date).fromNow()
+  },
+  extname: ".hbs"
+});
+
+app.engine(".hbs", hbs.engine);
 app.set("view engine", ".hbs");
+
+app.use(
+  session({
+    secret: process.env.EXPRESS_SESSION_SECRET,
+    resave: false,
+    saveUninitialized: true,
+    cookie: {}
+  })
+);
 
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.get("/", function(req, res) {
-
-  let { username, links } = db
+  let { username, links } = req.session;
   res.render("home", { username, links });
 });
 
 // save our username
 app.post("/name", function(req, res, next) {
-  db.username = req.body.username;
-
-  console.log(db, JSON.stringify(db));
-
-  saveDB(db, err => {
-    if (err) next(err);
-    res.redirect("/");
-  });
+  req.session.username = req.body.username;
+  res.redirect("/");
 });
 
 app.post("/link", function(req, res, next) {
   let { link, label } = req.body;
-
-  if (!db.links) db.links = [];
-
-  db.links.push({ link, label, timestamp: +(new Date()) });
-
-  saveDB(db, err => {
-    if (err) next(err);
-    res.redirect("/");
-  });
+  if (!req.session.links) req.session.links = [];
+  req.session.links.push({ link, label, timestamp: +new Date() });
+  res.redirect("/");
 });
 
 app.listen(process.env.PORT || 3000);
-
-
-function saveDB(db, cb) {
-  fs.writeFile("db.json", JSON.stringify(db), err => {
-    cb(err);
-  });
-}
-
